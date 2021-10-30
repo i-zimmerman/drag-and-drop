@@ -1,5 +1,19 @@
 // Code goes here!
 
+// Drag and Drop interfaces
+
+interface Draggable {
+  dragStartHandler(event: DragEvent): void;
+  dragEndHandler(event: DragEvent): void;
+}
+
+interface DragTarget {
+  dragOverHandler(event: DragEvent): void;
+  dropHandler(event: DragEvent): void;
+  // if user leaves, or cancells drop
+  dragLeaveHandler(event: DragEvent): void;
+}
+
 // Validation
 interface Validatable {
   value: string | number;
@@ -113,14 +127,26 @@ class ProjectState extends State<Project> {
     return this.instance;
   }
 
+  private updateListeners() {
+    for (const listenerFn of this.listeners) {
+      listenerFn(this.projects.slice());
+    }
+  }
+
   addProject(title: string, descr: string, people: number) {
     const id = Math.random().toString();
     const project = new Project(title, id, descr, people, ProjectStatus.Active);
 
     this.projects.push(project);
+    this.updateListeners();
+  }
 
-    for (const listenerFn of this.listeners) {
-      listenerFn(this.projects.slice());
+  moveProject(projectId: string, newStatus: ProjectStatus) {
+    const project = this.projects.find((project) => project.id === projectId);
+
+    if (project && project.status !== newStatus) {
+      project.status = newStatus;
+      this.updateListeners();
     }
   }
 }
@@ -169,7 +195,56 @@ abstract class Component<T extends HTMLElement, U extends HTMLElement> {
   abstract renderContent(): void;
 }
 
-class ProjectList extends Component<HTMLDivElement, HTMLElement> {
+class ProjectItem
+  extends Component<HTMLUListElement, HTMLLIElement>
+  implements Draggable
+{
+  private project: Project;
+
+  // convention - getters below other fields
+  // private methods before public
+
+  get persons() {
+    if (this.project.people === 1) {
+      return "1 person";
+    } else {
+      return `${this.project.people} persons`;
+    }
+  }
+
+  constructor(hostId: string, project: Project) {
+    super("single-project", hostId, false, project.id);
+    this.project = project;
+
+    this.configure();
+    this.renderContent();
+  }
+
+  @Autobind
+  dragStartHandler(event: DragEvent) {
+    // special prop for drag events
+    // attach data and then extract upon a drop
+    event.dataTransfer!.setData("text/plain", this.project.id);
+    event.dataTransfer!.effectAllowed = "move";
+  }
+  dragEndHandler(_: DragEvent) {}
+
+  configure() {
+    this.element.addEventListener("dragstart", this.dragStartHandler);
+    this.element.addEventListener("dragend", this.dragEndHandler);
+  }
+
+  renderContent() {
+    this.element.querySelector("h2")!.textContent = this.project.title;
+    this.element.querySelector("h3")!.textContent = this.persons + " assigned";
+    this.element.querySelector("p")!.textContent = this.project.descr;
+  }
+}
+
+class ProjectList
+  extends Component<HTMLDivElement, HTMLElement>
+  implements DragTarget
+{
   assignedProjects: any[];
 
   constructor(private type: "active" | "finished") {
@@ -177,6 +252,34 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
     this.assignedProjects = [];
     this.configure();
     this.renderContent();
+  }
+
+  @Autobind
+  dragLeaveHandler(event: DragEvent) {
+    const listEl = this.element.querySelector("ul")!;
+    listEl.classList.remove("droppable");
+  }
+
+  @Autobind
+  dragOverHandler(event: DragEvent) {
+    if (event.dataTransfer && event.dataTransfer.types[0] === "text/plain") {
+      // drop event will only be triggered on an element
+      // if in drag over handler on that same element
+      // you call prevent default
+      // default is to not allow dropping
+      event.preventDefault();
+      const listEl = this.element.querySelector("ul")!;
+      listEl.classList.add("droppable");
+    }
+  }
+
+  @Autobind
+  dropHandler(event: DragEvent) {
+    const prjId = event.dataTransfer!.getData("text/plain");
+    state.moveProject(
+      prjId,
+      this.type === "active" ? ProjectStatus.Active : ProjectStatus.Finished
+    );
   }
 
   renderProjects() {
@@ -187,13 +290,15 @@ class ProjectList extends Component<HTMLDivElement, HTMLElement> {
     listEl.innerHTML = "";
 
     for (const prjItem of this.assignedProjects) {
-      const listItem = document.createElement("li");
-      listItem.textContent = prjItem.title;
-      listEl.appendChild(listItem);
+      new ProjectItem(this.element.querySelector("ul")!.id, prjItem);
     }
   }
 
   configure() {
+    this.element.addEventListener("dragover", this.dragOverHandler);
+    this.element.addEventListener("dragleave", this.dragLeaveHandler);
+    this.element.addEventListener("drop", this.dropHandler);
+
     // arrow func don’t define their own context since it doesn’t have its own this context.
     // arrow func inherit that from the parent scope whenever you call this.
     state.addListener((projects: Project[]) => {
