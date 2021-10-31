@@ -5,9 +5,10 @@
 // /// <reference  path="drag-drop-interfaces.ts"/>
 
 // as long as we rely on the browser to import our files we should
-// provide and extension .js
-import { ProjectInput } from "./components/project-input.js";
-import { ProjectList } from "./components/project-list.js";
+// provide and extension .js removed for webpack
+import "./app.css";
+import { ProjectInput } from "./components/project-input";
+import { ProjectList } from "./components/project-list";
 
 // you can split namespaces across multiple files
 // but you can import namespace only in the same namespace
