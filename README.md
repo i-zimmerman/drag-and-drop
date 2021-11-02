@@ -1,5 +1,7 @@
-# Drag and drop project as part of
+## Master branch: Drag and drop project
 
-# Understanding Typescript Udemy course by Maximilian Schwarzmüller
+## Second branch: Select and share a place project
 
-## https://www.udemy.com/course/understanding-typescript
+### Understanding Typescript Udemy course by Maximilian Schwarzmüller
+
+### https://www.udemy.com/course/understanding-typescript
